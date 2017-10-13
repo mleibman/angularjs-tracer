@@ -90,7 +90,7 @@
     do {
       console.log(`%c${stack.source}`, 'font-weight:bold');
 
-      if (stack.calls.length) {
+      if (stack.calls && stack.calls.length) {
         const lastCall = stack.calls[0];
         logCall(stack, lastCall);   
         if (stack.calls.length > 1) {
