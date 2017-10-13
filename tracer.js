@@ -9,7 +9,7 @@
  * USAGE:
  * 
  * After running this script, all newly-scheduled AngularJS calls get tracked.
- * You can call window.tracer.log() at any point to print the current trace.
+ * You can call window.trace() at any point to print the current trace.
  */
 
 
