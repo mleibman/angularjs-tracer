@@ -9,7 +9,7 @@
  * USAGE:
  * 
  * After running this script, all newly-scheduled AngularJS calls get tracked.
- * You can call window.tracer.log() at any point to print the current trace.
+ * You can call window.trace() at any point to print the current trace.
  */
 
 
@@ -188,6 +188,7 @@
   }
 
   function patchAngularJs() {
+    if (!window.angular) return;
     const injector = angular.element(document).injector(); // || angular.injector(['ng']) || angular.element(document.body).injector();
 
     injector.invoke(['$rootScope', '$parse', '$q', ($rootScope, $parse, $q) => {
