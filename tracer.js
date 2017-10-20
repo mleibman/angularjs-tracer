@@ -9,7 +9,7 @@
  * USAGE:
  * 
  * After running this script, all newly-scheduled AngularJS calls get tracked.
- * You can call window.trace() at any point to print the current trace.
+ * You can call window.tracer.log() at any point to print the current trace.
  */
 
 
@@ -70,14 +70,18 @@
       set: (scope, args) => {
         traceBefore = currentTrace;
         currentTrace = trace;
-        trace.callCount++;
 
         // Keep track of the last N calls.
+        trace.callCount++;
         if (!trace.calls) {
           trace.calls = [];
         }
         while (trace.calls.length > MAX_CALLS_TO_TRACK) trace.calls.pop();
-        trace.calls.unshift(); 
+        trace.calls.unshift({
+          timestamp: performance.now(),
+          scope,
+          args
+        }); 
       },
       restore: () => {
         currentTrace = traceBefore;
@@ -94,7 +98,7 @@
         const lastCall = stack.calls[0];
         logCall(stack, lastCall);   
         if (stack.calls.length > 1) {
-          console.groupCollapsed(`Prev ${stack.calls.length - 1} calls (out of ${stack.callCount} total)`);
+          console.groupCollapsed(`Prev ${stack.calls.length - 1} call(s) (out of ${stack.callCount} total)`);
           for (let i = 1; i < stack.calls.length; i++) {
             logCall(stack, stack.calls[i]);
           }
@@ -184,7 +188,7 @@
   }
 
   function patchAngularJs() {
-    const injector = angular.injector(['ng']) || angular.element(document.body).injector();
+    const injector = angular.element(document).injector(); // || angular.injector(['ng']) || angular.element(document.body).injector();
 
     injector.invoke(['$rootScope', '$parse', '$q', ($rootScope, $parse, $q) => {
       const promise = Object.getPrototypeOf($q.defer().promise);
@@ -262,7 +266,7 @@
   
   // Init.  
   patchZoneJs();
-  window.angular && patchAngularJs();
+  patchAngularJs();
 
   // Default is 15, definitely not enough.
   Error.stackTraceLimit = 100;
