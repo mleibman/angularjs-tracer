@@ -1,6 +1,5 @@
 // TODO:
 // - an option to not patch $on, or show both where it got registered and invoked
-// - import Zone.js
 // - find a way to bootstrap it early
 // - detect blocklisted frames
 // - expose more watch expressions
@@ -12,8 +11,12 @@
  * You can call window.trace() at any point to print the current trace.
  */
 
+// Ideally, this should be imported before AngularJS itself.
+import('https://cdnjs.cloudflare.com/ajax/libs/zone.js/0.8.18/zone.js');
+
 
 (function init() {
+  const PATCH_$ON = false;
   const MAX_CALLS_TO_TRACK = 10;
   const BLACKLISTED_FRAMES = [
     // Standard stacktrace header.
@@ -21,9 +24,12 @@
 
     // Zone.js internals.
     'globalZoneAwareCallback',
+    'at Zone.',
+    'at ZoneDelegate.',
     'at ZoneTask.',
     'at invokeTask ',
     'at timer ',
+    'at XMLHttpRequest.wrapFn ',
 
     // AngularJS internals.
     'at eval ',
@@ -47,11 +53,11 @@
     // Instrumentation.
     '<anonymous>',
     'at wrapDeferred '
-  ];   
+  ];
 
-  let currentTrace = null; 
+  let currentTrace = null;
 
-  function getStack(source ) {
+  function getStack(source) {
     return {
       parent: currentTrace,
       scheduled: performance.now(),
@@ -65,7 +71,7 @@
 
   function captureTrace(source) {
     const trace = getStack(source);
-    let traceBefore = null; 
+    let traceBefore = null;
     return {
       set: (scope, args) => {
         traceBefore = currentTrace;
@@ -81,7 +87,7 @@
           timestamp: performance.now(),
           scope,
           args
-        }); 
+        });
       },
       restore: () => {
         currentTrace = traceBefore;
@@ -96,7 +102,7 @@
 
       if (stack.calls && stack.calls.length) {
         const lastCall = stack.calls[0];
-        logCall(stack, lastCall);   
+        logCall(stack, lastCall);
         if (stack.calls.length > 1) {
           console.groupCollapsed(`Prev ${stack.calls.length - 1} call(s) (out of ${stack.callCount} total)`);
           for (let i = 1; i < stack.calls.length; i++) {
@@ -104,7 +110,7 @@
           }
           console.groupEnd();
         }
-        logPerformanceEntries(stack.scheduled, lastCall.timestamp);        
+        logPerformanceEntries(stack.scheduled, lastCall.timestamp);
       }
 
       const frames = stack.error.stack;
@@ -119,7 +125,9 @@
   function logCall(stack, call) {
     const delay = Math.round(100 * (call.timestamp - stack.scheduled)) / 100;
     console.log('Latency', delay);
-    console.log('scope', call.scope);
+    if (call.scope !== window) {
+      console.log('scope', call.scope);
+    }
     console.log('args', call.args);
   }
 
@@ -191,7 +199,15 @@
     if (!window.angular) return;
     const injector = angular.element(document).injector(); // || angular.injector(['ng']) || angular.element(document.body).injector();
 
-    injector.invoke(['$rootScope', '$parse', '$q', ($rootScope, $parse, $q) => {
+    injector.invoke(['$rootScope', '$parse', '$q', '$browser', ($rootScope, $parse, $q, $browser) => {
+      const defer = $browser.defer;
+      $browser.defer = function (fn, delay) {
+        return defer.call(this, wrapDeferred(fn, '$browser.defer'), delay);
+      };
+      $browser.defer.cancel = defer.cancel;
+      $browser.defer.flush = defer.flush;
+
+
       const promise = Object.getPrototypeOf($q.defer().promise);
       const $then = promise.then;
       promise.then = function (success, error, notify) {
@@ -218,12 +234,14 @@
         $applyAsync.call(this, wrapDeferred(fn, '$$postDigest'));
       };
 
-      // We may not actually want to do that, as this would obscure how the event got triggered
-      // and, instead, show how path from where it got registered.
-      const $on = scope.$on;
-      scope.$on = function (name, listener) {
-        return $on.call(this, name, wrapDeferred(listener, `$on<${name}>`));
-      };
+      if (PATCH_$ON) {
+        // We may not actually want to do that, as this would obscure how the event got triggered
+        // and, instead, show how path from where it got registered.
+        const $on = scope.$on;
+        scope.$on = function (name, listener) {
+          return $on.call(this, name, wrapDeferred(listener, `$on<${name}>`));
+        };
+    }
 
       const $watch = scope.$watch;
       scope.$watch = function (exp, listener, objEq, prettyPrint) {
@@ -249,7 +267,7 @@
   function benchmark() {
     const iterations = 50000;
     const runs = 5;
-    
+
     for (let run = 0; run < runs; run++) {
       console.time('benchmark');
       let i = iterations;
@@ -263,8 +281,8 @@
       }
       console.timeEnd('benchmark');
     }
-  }  
-  
+  }
+
   // Init.  
   patchZoneJs();
   patchAngularJs();
