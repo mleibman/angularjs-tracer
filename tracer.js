@@ -144,7 +144,7 @@ import('https://cdnjs.cloudflare.com/ajax/libs/zone.js/0.8.18/zone.js');
   }
 
   function logPerformanceEntries(from, to) {
-    const entries = resources = performance.getEntries().filter(
+    const entries = performance.getEntries().filter(
       entry => entry.startTime >= from && entry.startTime + entry.duration < to);
 
     if (entries.length) {
@@ -245,7 +245,13 @@ import('https://cdnjs.cloudflare.com/ajax/libs/zone.js/0.8.18/zone.js');
 
       const $watch = scope.$watch;
       scope.$watch = function (exp, listener, objEq, prettyPrint) {
-        const strExp = typeof exp == 'string' ? exp : '';
+        let strExp = '';
+        if (typeof exp == 'string') {
+          strExp = exp;
+        }
+        if (typeof exp == 'function' && exp.name) {
+          strExp = exp.name;
+        }
         const get = $parse(exp);
 
         // Watch delegates need access to properties on the parsed expression.
@@ -256,7 +262,7 @@ import('https://cdnjs.cloudflare.com/ajax/libs/zone.js/0.8.18/zone.js');
         }
 
         return $watch.call(this,
-          wrapDeferred(get, `$watch<${strExp}`),
+          wrapDeferred(get, `$watch<${strExp}>`),
           wrapDeferred(listener, `$watch.listener<${strExp}>`),
           objEq,
           prettyPrint);
