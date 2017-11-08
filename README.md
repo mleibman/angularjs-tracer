@@ -2,7 +2,7 @@
 
 ## Overview
 
-Presentation given at Seattle Angular meetup - https://goo.gl/EDU3iy.
+Presentation given at Seattle Angular meetup - http://bit.ly/angularjs-tracer.
 
 **DISCLAIMER**: This started out as a tool I wrote to help me debug performance and latency of Google Cloud Console. I figured it might be useful to folks, so I've extracted it out into something that can be put out there, but it still has some rough edges.
 
