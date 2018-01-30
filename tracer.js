@@ -52,7 +52,8 @@ import('https://cdnjs.cloudflare.com/ajax/libs/zone.js/0.8.18/zone.js');
 
     // Instrumentation.
     '<anonymous>',
-    'at wrapDeferred '
+    'at wrapDeferred ',
+    'at deferredWrapper ',
   ];
 
   let currentTrace = null;
@@ -135,12 +136,7 @@ import('https://cdnjs.cloudflare.com/ajax/libs/zone.js/0.8.18/zone.js');
     if (!frame) {
       return true;
     }
-    for (let i = 0; i < BLACKLISTED_FRAMES.length; i++) {
-      if (frame.indexOf(BLACKLISTED_FRAMES[i]) !== -1) {
-        return true;
-      }
-    }
-    return false;
+    return BLACKLISTED_FRAMES.some(blacklisted => frame.includes(blacklisted));    
   }
 
   function logPerformanceEntries(from, to) {
@@ -157,14 +153,14 @@ import('https://cdnjs.cloudflare.com/ajax/libs/zone.js/0.8.18/zone.js');
   function patchZoneJs() {
     const rootZone = window.Zone && Zone.root;
     if (rootZone) {
-      const scheduleTask = rootZone.scheduleTask;
-      rootZone.scheduleTask = function (task) {
+      const scheduleTask = rootZone.prototype.scheduleTask;
+      rootZone.prototype.scheduleTask = function (task) {
         task.trace = captureTrace(`async (${task.source})`);
         return scheduleTask.call(this, task);
       }
 
-      const runTask = rootZone.runTask;
-      rootZone.runTask = function (task, applyThis, applyArgs) {
+      const runTask = rootZone.prototype.runTask;
+      rootZone.prototype.runTask = function (task, applyThis, applyArgs) {
         const trace = task.trace;
         try {
           trace && trace.set(applyThis, applyArgs);
@@ -181,14 +177,10 @@ import('https://cdnjs.cloudflare.com/ajax/libs/zone.js/0.8.18/zone.js');
 
     const trace = captureTrace(source);
 
-    // perf: explicitly passing args is faster than calling fn.apply(this, args)
-    // none of the functions we're wrapping need to preserve 'this' scope
-    // and use more than 5 args
-    // See https://jsperf.com/wrapped-invoke.
-    return function deferredWrapper(arg0, arg1, arg2, arg3, arg4) {
+    return function deferredWrapper() {
       try {
         trace.set(this, arguments);
-        return fn(arg0, arg1, arg2, arg3, arg4);
+        return fn.apply(this, arguments);
       } finally {
         trace.restore();
       }
